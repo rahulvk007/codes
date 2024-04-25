@@ -1,0 +1,1133 @@
+************************************Lab-6*************************************************
+***********************************RSA****************************************************
+
+SERVER
+import java.io.*;
+import java.math.BigInteger;
+import java.net.*;
+import java.security.SecureRandom;
+
+public class Server 
+{
+    private static final int BIT_LENGTH = 512; 
+    public static void main(String[] args) 
+    {
+        try {
+            ServerSocket serverSocket = new ServerSocket(12345);
+            System.out.println("Server waiting for connection...");
+            Socket socket = serverSocket.accept();
+            System.out.println("Connection established.");
+            BigInteger p = generatePrime();
+            BigInteger q = generatePrime();
+            BigInteger n = p.multiply(q);
+            BigInteger phi = p.subtract(BigInteger.ONE).multiply(q.subtract(BigInteger.ONE));
+            BigInteger e = calculatePublicKey(phi);
+            BigInteger d = e.modInverse(phi);
+            ObjectOutputStream publicKeyStream = new ObjectOutputStream(socket.getOutputStream());
+            publicKeyStream.writeObject(new PublicKey(e, n));
+            ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+            BigInteger encryptedMessage = (BigInteger) inputStream.readObject();
+            BigInteger decryptedMessage = encryptedMessage.modPow(d, n);
+            System.out.println("Decrypted Message: " + decryptedMessage.toString());
+            socket.close();
+            serverSocket.close();
+        } 
+        catch (Exception e) 
+        {
+            e.printStackTrace();
+        }
+    }
+
+    private static BigInteger generatePrime() 
+    {
+        return BigInteger.probablePrime(BIT_LENGTH, new SecureRandom());
+    }
+
+    private static BigInteger calculatePublicKey(BigInteger phi) 
+    {
+        BigInteger e = BigInteger.valueOf(2); 
+        while (e.gcd(phi).intValue() != 1) 
+        {
+            e = e.add(BigInteger.ONE);
+        }
+        return e;
+    }
+
+    public static class PublicKey implements Serializable 
+    {
+        private final BigInteger e;
+        private final BigInteger n;
+        public PublicKey(BigInteger e, BigInteger n) 
+        {
+            this.e = e;
+            this.n = n;
+        }
+
+        public BigInteger getE() 
+        {
+            return e;
+        }
+
+        public BigInteger getN() 
+        {
+            return n;
+        }
+    }
+}
+
+
+CLIENT
+
+import java.io.*;
+import java.math.BigInteger;
+import java.net.*;
+
+public class Client 
+{
+    public static void main(String[] args) 
+    {
+        try {
+            Socket socket = new Socket("localhost", 12345);
+            ObjectInputStream publicKeyStream = new ObjectInputStream(socket.getInputStream());
+            Server.PublicKey publicKey = (Server.PublicKey) publicKeyStream.readObject();
+            BigInteger message = new BigInteger("563"); 
+            BigInteger encryptedMessage = message.modPow(publicKey.getE(), publicKey.getN());
+            ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+            outputStream.writeObject(encryptedMessage);
+            socket.close();
+        } 
+        catch (Exception e) 
+        {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+**************************************ELGAMMAL*********************************************
+
+SERVER
+
+import java.io.*;
+import java.math.BigInteger;
+import java.net.*;
+
+public class Server 
+{
+    private static final BigInteger P = new BigInteger("982451653"); 
+    private static final BigInteger G = new BigInteger("5");
+    private static final BigInteger X = new BigInteger("789"); 
+    public static void main(String[] args) throws IOException 
+    {
+        ServerSocket serverSocket = new ServerSocket(1234);
+        System.out.println("Server started. Waiting for client...");
+        Socket socket = serverSocket.accept();
+        System.out.println("Client connected.");
+        ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+        try 
+        {
+            BigInteger publicKey = (BigInteger) in.readObject();
+            BigInteger ciphertext = (BigInteger) in.readObject();
+            BigInteger decryptedMessage = decrypt(ciphertext, publicKey);
+            System.out.println("Decrypted message: " + decryptedMessage);
+        } 
+        catch (ClassNotFoundException e) 
+        {
+            e.printStackTrace();
+        }
+        socket.close();
+        serverSocket.close();
+    }
+
+    private static BigInteger decrypt(BigInteger ciphertext, BigInteger publicKey) 
+    {
+        BigInteger sharedSecret = publicKey.modPow(X, P);
+        BigInteger inverseSharedSecret = sharedSecret.modInverse(P);
+        return ciphertext.multiply(inverseSharedSecret).mod(P);
+    }
+}
+
+CLIENT
+
+import java.io.*;
+import java.math.BigInteger;
+import java.net.*;
+
+public class Client 
+{
+    private static final BigInteger P = new BigInteger("982451653"); 
+    private static final BigInteger G = new BigInteger("5");
+    private static final BigInteger Y = new BigInteger("456789"); 
+    public static void main(String[] args) throws IOException 
+    {
+        Socket socket = new Socket("localhost", 1234);
+        System.out.println("Connected to server.");
+        BigInteger message = new BigInteger("456"); 
+        BigInteger ciphertext = encrypt(message);
+        ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+        out.writeObject(Y);
+        out.writeObject(ciphertext);
+        socket.close();
+    }
+
+    private static BigInteger encrypt(BigInteger message) 
+    {
+        BigInteger k = new BigInteger(P.bitLength(), new java.util.Random());
+        BigInteger sharedSecret = G.modPow(k, P);
+        BigInteger ciphertext1 = G.modPow(k, P);
+        BigInteger ciphertext2 = Y.modPow(k, P).multiply(message).mod(P);
+        return ciphertext1.multiply(ciphertext2);
+    }
+}
+
+
+*********************************************************LAB-7******************************************************
+
+*********************************************************DH KEY*****************************************************
+
+*******************************************************TRUSTED SOURCE***********************************************
+
+SERVER
+
+import java.net.*;
+import java.io.*;
+
+public class DHserver_21BCE5062 {
+    public static void main(String[] args) throws IOException {
+        try {
+            int port = 8088;
+            int b; 
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            System.out.print("Enter Server Private Key (b): ");
+            b = Integer.parseInt(reader.readLine());
+
+            ServerSocket serverSocket = new ServerSocket(port);
+            System.out.println("Waiting for client on port " + serverSocket.getLocalPort() + "...");
+            Socket server = serverSocket.accept();
+            System.out.println("Just connected to " + server.getRemoteSocketAddress());
+
+            System.out.println("From Server : Private Key = " + b);
+
+            DataInputStream in = new DataInputStream(server.getInputStream());
+
+            double clientP = Double.parseDouble(in.readUTF());
+            System.out.println("From Client : P = " + clientP);
+
+            double clientG = Double.parseDouble(in.readUTF());
+            System.out.println("From Client : G = " + clientG);
+
+            double clientA = Double.parseDouble(in.readUTF());
+            System.out.println("From Client : Public Key = " + clientA);
+
+            double B = ((Math.pow(clientG, b)) % clientP);
+            String Bstr = Double.toString(B);
+
+            OutputStream outToClient = server.getOutputStream();
+            DataOutputStream out = new DataOutputStream(outToClient);
+
+            out.writeUTF(Bstr);
+
+            double Bdash = ((Math.pow(clientA, b)) % clientP);
+
+            System.out.println("Secret Key to perform Symmetric Encryption = " + Bdash);
+            server.close();
+        } catch (SocketTimeoutException s) {
+            System.out.println("Socket timed out!");
+        } catch (IOException | NumberFormatException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+CLIENT
+
+import java.net.*;
+import java.io.*;
+
+public class DHclient_21BCE5062 {
+    public static void main(String[] args) {
+        try {
+            String serverName = "localhost";
+            int port = 8088;
+
+            double p, g, a;
+            double Adash, serverB;
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            System.out.print("Enter Client P: ");
+            p = Double.parseDouble(reader.readLine());
+            System.out.print("Enter Client G: ");
+            g = Double.parseDouble(reader.readLine());
+            System.out.print("Enter Client Private Key (a): ");
+            a = Double.parseDouble(reader.readLine());
+
+            System.out.println("Connecting to " + serverName + " on port " + port);
+            Socket client = new Socket(serverName, port);
+            System.out.println("Just connected to " + client.getRemoteSocketAddress());
+
+            OutputStream outToServer = client.getOutputStream();
+            DataOutputStream out = new DataOutputStream(outToServer);
+
+            out.writeUTF(Double.toString(p));
+            out.writeUTF(Double.toString(g));
+
+            double A = ((Math.pow(g, a)) % p);
+            out.writeUTF(Double.toString(A));
+
+            System.out.println("From Client : Private Key = " + a);
+
+            DataInputStream in = new DataInputStream(client.getInputStream());
+
+            serverB = Double.parseDouble(in.readUTF());
+            System.out.println("From Server : Public Key = " + serverB);
+
+            Adash = ((Math.pow(serverB, a)) % p);
+
+            System.out.println("Secret Key to perform Symmetric Encryption = " + Adash);
+            client.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+************************************************Untrusted source (A--C--B)************************************
+
+CODE:
+
+Server:
+
+import java.io.*;
+import java.net.*;
+
+public class DHserver2_21BCE5062 {
+    public static void main(String[] args) {
+        try {
+            int port = 8088;
+            double P = 25; 
+            double G = 6; 
+            int b = 7;
+            ServerSocket serverSocket = new ServerSocket(port);
+            System.out.println("Waiting for client A on port " + serverSocket.getLocalPort() + "...");
+            Socket clientA = serverSocket.accept();
+            System.out.println("Just connected to Client A: " + clientA.getRemoteSocketAddress());
+            DataInputStream inA = new DataInputStream(clientA.getInputStream());
+            double A = Double.parseDouble(inA.readUTF());
+            System.out.println("Received public key from Client A: " + A);
+            double secretKeyA = Math.pow(A, b) % P;
+            OutputStream outToClientA = clientA.getOutputStream();
+            DataOutputStream outA = new DataOutputStream(outToClientA);
+            outA.writeUTF(Double.toString(Math.pow(G, b) % P));
+            clientA.close();
+            Socket clientC = serverSocket.accept();
+            System.out.println("Just connected to Client C (Man in the Middle): " + clientC.getRemoteSocketAddress());
+            DataInputStream inC = new DataInputStream(clientC.getInputStream());
+            double C = Double.parseDouble(inC.readUTF());
+            System.out.println("Received public key from Client C (Man in the Middle): " + C);
+            double secretKeyC = Math.pow(C, b) % P;
+            clientC.close();
+            if (secretKeyA != secretKeyC) {
+                System.out.println("Mismatch: Secret keys from Client A and Client C do not match!");
+            } else {
+                System.out.println("Secret keys from Client A and Client C match!");
+            }
+            serverSocket.close();
+        } catch (IOException | NumberFormatException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+ClientA:
+
+import java.io.*;
+import java.net.*;
+
+public class DHclientA_21BCE5062 {
+    public static void main(String[] args) {
+        try {
+            String serverName = "localhost";
+            int port = 8088;
+            double P = 25; 
+            double G = 6;  
+            int a = 4;
+            System.out.println("Connecting to server " + serverName + " on port " + port);
+            Socket client = new Socket(serverName, port);
+            System.out.println("Just connected to server: " + client.getRemoteSocketAddress());
+            OutputStream outToServer = client.getOutputStream();
+            DataOutputStream out = new DataOutputStream(outToServer);
+            out.writeUTF(Double.toString(Math.pow(G, a) % P));
+            System.out.println("Sent public key to server: " + Math.pow(G, a) % P);
+            DataInputStream in = new DataInputStream(client.getInputStream());
+            double B = Double.parseDouble(in.readUTF());
+            System.out.println("Received public key from server: " + B);
+            client.close();
+        } catch (IOException | NumberFormatException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+ClientC:
+
+import java.io.*;
+import java.net.*;
+
+public class DHclientC_21BCE5062 {
+    public static void main(String[] args) {
+        try {
+            String serverName = "localhost";
+            int port = 8088;
+            double P = 25;
+            double G = 6;  
+            int c = 8;
+            System.out.println("Connecting to server " + serverName + " on port " + port);
+            Socket client = new Socket(serverName, port);
+            System.out.println("Just connected to server: " + client.getRemoteSocketAddress());
+            OutputStream outToServer = client.getOutputStream();
+            DataOutputStream out = new DataOutputStream(outToServer);
+            out.writeUTF(Double.toString(Math.pow(G, c) % P));
+            System.out.println("Sent public key to server (Client C - Man in the Middle): " + Math.pow(G, c) % P);
+            client.close();
+        } catch (IOException | NumberFormatException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+*********************************************************LAB - 8***********************************************************
+
+**********************************************************MD-5*************************************************************
+
+Server:
+
+import java.io.*;
+import java.net.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
+public class md5s_21BCE5062 {
+    public static void main(String[] args) {
+        final int PORT = 12345;
+
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("Server listening on port " + PORT);
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("Client connected: " + clientSocket.getInetAddress());
+                BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+                String message = in.readLine();
+                System.out.println("Received message from client: " + message);
+                String mac = generateMD5(message);
+                out.println(mac);
+                System.out.println("Sent MAC to client: " + mac);
+                clientSocket.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static String generateMD5(String message) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            md.update(message.getBytes());
+            byte[] bytes = md.digest();
+            StringBuilder sb = new StringBuilder();
+            for (byte aByte : bytes) {
+                sb.append(Integer.toString((aByte & 0xff) + 0x100, 16).substring(1));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+}
+
+Client:
+
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+public class md5c_21BCE5062 {
+    public static void main(String[] args) {
+        final String SERVER_ADDRESS = "localhost";
+        final int PORT = 12345;
+
+        try (Socket socket = new Socket(SERVER_ADDRESS, PORT);
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            Scanner scanner = new Scanner(System.in);
+            System.out.print("Enter the message: ");
+            String message = scanner.nextLine();
+            System.out.println("Sending message to server: " + message);
+            out.println(message);
+            String mac = in.readLine();
+            System.out.println("Received MAC from server: " + mac);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+********************************************MAC************************************
+
+Server
+
+import java.io.*;
+import java.net.*;
+import java.security.*;
+
+public class server_21bce5278 {
+    public static void main(String[] args) {
+        try {
+            ServerSocket serverSocket = new ServerSocket(12345);
+            System.out.println("Server started. Waiting for client...");
+
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Client connected.");
+
+            DataInputStream in = new DataInputStream(clientSocket.getInputStream());
+            DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream());
+
+            while (true) {
+                String message = in.readUTF();
+                if (message.equals("exit")) {
+                    System.out.println("Client disconnected.");
+                    break;
+                }
+                
+                int messageSize = in.readInt();
+
+                System.out.println("Message from client: " + message);
+                System.out.println("Message size: " + messageSize);
+
+                long startTime = System.nanoTime();
+                String sha128MAC = generateDigest(message, "SHA-1");
+                long endTime = System.nanoTime();
+                long sha128Time = endTime - startTime;
+
+                startTime = System.nanoTime();
+                String sha256MAC = generateDigest(message, "SHA-256");
+                endTime = System.nanoTime();
+                long sha256Time = endTime - startTime;
+
+                System.out.println("SHA-128 MAC: " + sha128MAC + " (Time: " + sha128Time + " ns)");
+                System.out.println("SHA-256 MAC: " + sha256MAC + " (Time: " + sha256Time + " ns)");
+
+                out.writeUTF("SHA-128 MAC: " + sha128MAC + " (Time: " + sha128Time + " ns)");
+                out.writeUTF("SHA-256 MAC: " + sha256MAC + " (Time: " + sha256Time + " ns)");
+            }
+
+            serverSocket.close();
+        } catch (IOException | NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static String generateDigest(String message, String algorithm) throws NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance(algorithm);
+        byte[] hash = digest.digest(message.getBytes());
+        return bytesToHex(hash);
+    }
+
+    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
+    
+    public static String bytesToHex(byte[] bytes) {
+        char[] hexChars = new char[bytes.length * 2];
+        for (int j = 0; j < bytes.length; j++) {
+            int v = bytes[j] & 0xFF;
+            hexChars[j * 2] = HEX_ARRAY[v >>> 4];
+            hexChars[j * 2 + 1] = HEX_ARRAY[v & 0x0F];
+        }
+        return new String(hexChars);
+    }
+}
+
+
+
+Client
+
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+public class client_21bce5278 {
+    public static void main(String[] args) {
+        try {
+            Scanner scanner = new Scanner(System.in);
+            System.out.print("Enter message to send (type 'exit' to quit): ");
+            String message = scanner.nextLine();
+
+            Socket socket = new Socket("localhost", 12345);
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+
+            while (!message.equals("exit")) {
+                out.writeUTF(message);
+                out.writeInt(message.length());
+
+                String sha128MAC = in.readUTF();
+                String sha256MAC = in.readUTF();
+
+                System.out.println("Received SHA-128 MAC: " + sha128MAC);
+                System.out.println("Received SHA-256 MAC: " + sha256MAC);
+
+                System.out.print("\nEnter message to send (type 'exit' to quit): ");
+                message = scanner.nextLine();
+            }
+
+            out.writeUTF("exit");
+            scanner.close();
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+******************************************************************DSS****************************
+
+Server
+
+
+import java.io.*;
+import java.net.*;
+import java.security.*;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
+
+
+public class server_21bce5278 {
+    public static void main(String[] args) throws Exception {
+        int port = 12345;
+        ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("Server listening on port " + port);
+
+
+        while (true) {
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Client connected: " + clientSocket);
+
+
+            ObjectInputStream inputStream = new ObjectInputStream(clientSocket.getInputStream());
+            String message = (String) inputStream.readObject();
+            byte[] signature = (byte[]) inputStream.readObject();
+
+
+            PublicKey publicKey = (PublicKey) inputStream.readObject();
+
+
+            boolean verified = verify(message, signature, publicKey);
+            System.out.println("Signature verified: " + verified);
+
+
+            System.out.println("Received message from client: " + message);
+
+
+            inputStream.close();
+            clientSocket.close();
+        }
+    }
+
+
+    public static boolean verify(String message, byte[] signature, PublicKey publicKey) throws Exception {
+        Signature verifier = Signature.getInstance("SHA256withRSA");
+        verifier.initVerify(publicKey);
+        verifier.update(message.getBytes());
+        return verifier.verify(signature);
+    }
+}
+
+
+Client
+
+import java.io.*;
+import java.net.*;
+import java.security.*;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
+import java.util.Scanner;
+
+
+public class client_21bce5278 {
+    public static void main(String[] args) throws Exception {
+        String serverAddress = "localhost";
+        int serverPort = 12345;
+
+
+        KeyPair keyPair = generateKeyPair();
+
+
+        PrivateKey privateKey = keyPair.getPrivate();
+        PublicKey publicKey = keyPair.getPublic();
+        
+        Scanner sc = new Scanner(System.in);
+        System.out.println("Enter your message: ");
+        String data = sc.nextLine();
+
+
+        byte[] signature = sign(data, privateKey);
+
+
+        Socket socket = new Socket(serverAddress, serverPort);
+        ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+        outputStream.writeObject(data);
+        outputStream.writeObject(signature);
+        outputStream.writeObject(publicKey);
+        outputStream.close();
+        socket.close();
+    }
+
+    public static KeyPair generateKeyPair() throws Exception {
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+        keyPairGenerator.initialize(2048);
+        return keyPairGenerator.generateKeyPair();
+    }
+
+
+    public static byte[] sign(String data, PrivateKey privateKey) throws Exception {
+        Signature signature = Signature.getInstance("SHA256withRSA");
+        signature.initSign(privateKey);
+        signature.update(data.getBytes());
+        return signature.sign();
+    }
+}
+
+
+
+***************************************LAB-2 CRT************************************************************************
+
+import java.util.Scanner;
+
+public class ChineseRemainderTheorem {
+
+    // Extended Euclidean Algorithm
+    public static long extendedEuclidean(long a, long b, long[] x) {
+        if (b == 0) {
+            x[0] = 1;
+            x[1] = 0;
+            return a;
+        }
+        long[] temp = new long[2];
+        long gcd = extendedEuclidean(b, a % b, temp);
+        x[0] = temp[1];
+        x[1] = temp[0] - (a / b) * temp[1];
+        return gcd;
+    }
+
+    // Chinese Remainder Theorem Function
+    public static long chineseRemainder(long[] num, long[] rem) {
+        int k = num.length;
+        long prod = 1;
+        for (int i = 0; i < k; i++)
+            prod *= num[i];
+
+        long result = 0;
+        for (int i = 0; i < k; i++) {
+            long pp = prod / num[i];
+            long[] x = new long[2];
+            extendedEuclidean(pp, num[i], x);
+            result += rem[i] * x[0] * pp;
+        }
+        return result % prod;
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.println("Enter the number of congruences:");
+        int n = scanner.nextInt();
+
+        long[] num = new long[n];
+        long[] rem = new long[n];
+
+        System.out.println("Enter the values of modulus (n_i):");
+        for (int i = 0; i < n; i++) {
+            num[i] = scanner.nextLong();
+        }
+
+        System.out.println("Enter the values of remainders (a_i):");
+        for (int i = 0; i < n; i++) {
+            rem[i] = scanner.nextLong();
+        }
+
+        long result = chineseRemainder(num, rem);
+        System.out.println("The solution to the system of congruences is: " + result);
+    }
+}
+
+
+
+
+**************************************************LAB-3 Extended GCD*****************************************************************
+
+import java.util.Scanner;
+
+public class ExtendedGCD {
+
+    // Function to find the extended GCD
+    public static long[] extendedGCD(long a, long b) {
+        long[] result = new long[3];
+        if (b == 0) {
+            result[0] = a;
+            result[1] = 1;
+            result[2] = 0;
+            return result;
+        }
+
+        long[] temp = extendedGCD(b, a % b);
+        long gcd = temp[0];
+        long x = temp[2];
+        long y = temp[1] - (a / b) * temp[2];
+        
+        result[0] = gcd;
+        result[1] = x;
+        result[2] = y;
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.println("Enter two numbers to find their extended GCD:");
+        long a = scanner.nextLong();
+        long b = scanner.nextLong();
+
+        long[] result = extendedGCD(a, b);
+        System.out.println("Extended GCD of " + a + " and " + b + " is " + result[0] + ".");
+        System.out.println("Coefficients (x, y): " + result[1] + ", " + result[2]);
+    }
+}
+
+
+************************************PLAYFAIR WITH ROW-COLUMN*****************************************
+
+import java.util.Scanner;
+
+public class PlayfairWithTransposition {
+
+    // Function to remove spaces and duplicate letters from the key
+    public static String cleanKey(String key) {
+        key = key.toUpperCase().replaceAll("[^A-Z]", ""); // Remove non-alphabetic characters
+        StringBuilder cleanedKey = new StringBuilder();
+        boolean[] visited = new boolean[26]; // Track visited characters
+        for (char c : key.toCharArray()) {
+            if (!visited[c - 'A']) {
+                cleanedKey.append(c);
+                visited[c - 'A'] = true;
+            }
+        }
+        return cleanedKey.toString();
+    }
+
+    // Function to generate the Playfair matrix from the key
+    public static char[][] generatePlayfairMatrix(String key) {
+        String cleanedKey = cleanKey(key);
+        char[][] matrix = new char[5][5];
+        int index = 0;
+
+        // Fill the matrix with the key
+        for (int i = 0; i < 5; i++) {
+            for (int j = 0; j < 5; j++) {
+                if (index < cleanedKey.length()) {
+                    matrix[i][j] = cleanedKey.charAt(index++);
+                } else {
+                    matrix[i][j] = (char) ('A' + (index - cleanedKey.length()));
+                    index++;
+                }
+            }
+        }
+        return matrix;
+    }
+
+    // Function to encrypt plaintext using the Playfair Cipher
+    public static String playfairEncrypt(String plaintext, char[][] matrix) {
+        plaintext = plaintext.toUpperCase().replaceAll("[^A-Z]", ""); // Remove non-alphabetic characters
+        StringBuilder ciphertext = new StringBuilder();
+
+        for (int i = 0; i < plaintext.length(); i += 2) {
+            char first = plaintext.charAt(i);
+            char second = (i + 1 < plaintext.length()) ? plaintext.charAt(i + 1) : 'X';
+
+            int[] firstCoords = findLetterCoordinates(matrix, first);
+            int[] secondCoords = findLetterCoordinates(matrix, second);
+
+            // If the letters are in the same row
+            if (firstCoords[0] == secondCoords[0]) {
+                ciphertext.append(matrix[firstCoords[0]][(firstCoords[1] + 1) % 5]);
+                ciphertext.append(matrix[secondCoords[0]][(secondCoords[1] + 1) % 5]);
+            }
+            // If the letters are in the same column
+            else if (firstCoords[1] == secondCoords[1]) {
+                ciphertext.append(matrix[(firstCoords[0] + 1) % 5][firstCoords[1]]);
+                ciphertext.append(matrix[(secondCoords[0] + 1) % 5][secondCoords[1]]);
+            }
+            // If the letters form a rectangle
+            else {
+                ciphertext.append(matrix[firstCoords[0]][secondCoords[1]]);
+                ciphertext.append(matrix[secondCoords[0]][firstCoords[1]]);
+            }
+        }
+
+        return ciphertext.toString();
+    }
+
+    // Function to find the coordinates of a letter in the Playfair matrix
+    public static int[] findLetterCoordinates(char[][] matrix, char letter) {
+        int[] coordinates = new int[2];
+        for (int i = 0; i < 5; i++) {
+            for (int j = 0; j < 5; j++) {
+                if (matrix[i][j] == letter) {
+                    coordinates[0] = i;
+                    coordinates[1] = j;
+                    return coordinates;
+                }
+            }
+        }
+        return coordinates;
+    }
+
+    // Function for row-column transposition encryption
+    public static String rowColumnTranspositionEncrypt(String plaintext, String key) {
+        int[] keyOrder = new int[key.length()];
+        for (int i = 0; i < key.length(); i++) {
+            keyOrder[i] = key.charAt(i) - '0' - 1;
+        }
+
+        int rows = plaintext.length() / key.length();
+        if (plaintext.length() % key.length() != 0)
+            rows++;
+
+        char[][] matrix = new char[rows][key.length()];
+
+        int index = 0;
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < key.length(); j++) {
+                if (index < plaintext.length()) {
+                    matrix[i][j] = plaintext.charAt(index++);
+                } else {
+                    matrix[i][j] = 'X'; // Fill with X if plaintext is shorter
+                }
+            }
+        }
+
+        StringBuilder ciphertext = new StringBuilder();
+        for (int k : keyOrder) {
+            for (int i = 0; i < rows; i++) {
+                ciphertext.append(matrix[i][k]);
+            }
+        }
+        return ciphertext.toString();
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.println("Enter the plaintext:");
+        String plaintext = scanner.nextLine();
+
+        System.out.println("Enter the key for Playfair Cipher:");
+        String key = scanner.nextLine();
+
+        char[][] playfairMatrix = generatePlayfairMatrix(key);
+
+        String playfairCiphertext = playfairEncrypt(plaintext, playfairMatrix);
+        System.out.println("Playfair Cipher Text: " + playfairCiphertext);
+
+        System.out.println("Enter the key for Row Column Transposition:");
+        String transpositionKey = scanner.nextLine();
+
+        String transpositionCiphertext = rowColumnTranspositionEncrypt(playfairCiphertext, transpositionKey);
+        System.out.println("Row Column Transposition Cipher Text: " + transpositionCiphertext);
+    }
+}
+
+
+**************************************PLAYFAIR********************************************************************************
+
+import java.util.Scanner;
+
+public class PlayfairCipher {
+
+    // Function to remove spaces and duplicate letters from the key
+    public static String cleanKey(String key) {
+        key = key.toUpperCase().replaceAll("[^A-Z]", ""); // Remove non-alphabetic characters
+        StringBuilder cleanedKey = new StringBuilder();
+        boolean[] visited = new boolean[26]; // Track visited characters
+        for (char c : key.toCharArray()) {
+            if (!visited[c - 'A']) {
+                cleanedKey.append(c);
+                visited[c - 'A'] = true;
+            }
+        }
+        return cleanedKey.toString();
+    }
+
+    // Function to generate the Playfair matrix from the key
+    public static char[][] generatePlayfairMatrix(String key) {
+        String cleanedKey = cleanKey(key);
+        char[][] matrix = new char[5][5];
+        int index = 0;
+
+        // Fill the matrix with the key
+        for (int i = 0; i < 5; i++) {
+            for (int j = 0; j < 5; j++) {
+                if (index < cleanedKey.length()) {
+                    matrix[i][j] = cleanedKey.charAt(index++);
+                } else {
+                    matrix[i][j] = (char) ('A' + (index - cleanedKey.length()));
+                    index++;
+                }
+            }
+        }
+        return matrix;
+    }
+
+    // Function to encrypt plaintext using the Playfair Cipher
+    public static String playfairEncrypt(String plaintext, char[][] matrix) {
+        plaintext = plaintext.toUpperCase().replaceAll("[^A-Z]", ""); // Remove non-alphabetic characters
+        StringBuilder ciphertext = new StringBuilder();
+
+        for (int i = 0; i < plaintext.length(); i += 2) {
+            char first = plaintext.charAt(i);
+            char second = (i + 1 < plaintext.length()) ? plaintext.charAt(i + 1) : 'X';
+
+            int[] firstCoords = findLetterCoordinates(matrix, first);
+            int[] secondCoords = findLetterCoordinates(matrix, second);
+
+            // If the letters are in the same row
+            if (firstCoords[0] == secondCoords[0]) {
+                ciphertext.append(matrix[firstCoords[0]][(firstCoords[1] + 1) % 5]);
+                ciphertext.append(matrix[secondCoords[0]][(secondCoords[1] + 1) % 5]);
+            }
+            // If the letters are in the same column
+            else if (firstCoords[1] == secondCoords[1]) {
+                ciphertext.append(matrix[(firstCoords[0] + 1) % 5][firstCoords[1]]);
+                ciphertext.append(matrix[(secondCoords[0] + 1) % 5][secondCoords[1]]);
+            }
+            // If the letters form a rectangle
+            else {
+                ciphertext.append(matrix[firstCoords[0]][secondCoords[1]]);
+                ciphertext.append(matrix[secondCoords[0]][firstCoords[1]]);
+            }
+        }
+
+        return ciphertext.toString();
+    }
+
+    // Function to find the coordinates of a letter in the Playfair matrix
+    public static int[] findLetterCoordinates(char[][] matrix, char letter) {
+        int[] coordinates = new int[2];
+        for (int i = 0; i < 5; i++) {
+            for (int j = 0; j < 5; j++) {
+                if (matrix[i][j] == letter) {
+                    coordinates[0] = i;
+                    coordinates[1] = j;
+                    return coordinates;
+                }
+            }
+        }
+        return coordinates;
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.println("Enter the plaintext:");
+        String plaintext = scanner.nextLine();
+
+        System.out.println("Enter the key for Playfair Cipher:");
+        String key = scanner.nextLine();
+
+        char[][] playfairMatrix = generatePlayfairMatrix(key);
+
+        String ciphertext = playfairEncrypt(plaintext, playfairMatrix);
+        System.out.println("Playfair Cipher Text: " + ciphertext);
+    }
+}
+
+
+
+******************************Normal Client-Server*****************************************************************************
+
+import java.io.*;
+import java.net.*;
+
+public class Server {
+    public static void main(String[] args) {
+        try {
+            ServerSocket serverSocket = new ServerSocket(1234); // Port number
+            System.out.println("Server waiting for client connection...");
+            
+            // Accept client connection
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Client connected: " + clientSocket);
+            
+            // Create input and output streams
+            BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+            
+            // Receive message from client and send response
+            String message = in.readLine();
+            System.out.println("Client sent: " + message);
+            out.println("Server received your message: " + message);
+            
+            // Close streams and sockets
+            in.close();
+            out.close();
+            clientSocket.close();
+            serverSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+
+
+import java.io.*;
+import java.net.*;
+
+public class Client {
+    public static void main(String[] args) {
+        try {
+            Socket socket = new Socket("localhost", 1234); // Server address and port number
+            System.out.println("Connected to server: " + socket);
+            
+            // Create input and output streams
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            
+            // Send message to server
+            out.println("Hello, Server!");
+            
+            // Receive response from server
+            String response = in.readLine();
+            System.out.println("Server response: " + response);
+            
+            // Close streams and socket
+            in.close();
+            out.close();
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
